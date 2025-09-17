@@ -25,7 +25,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         string company,
         string email,
         string phone,
-        address wallet,   
+        address wallet,
         uint256 timestamp
     );
 
