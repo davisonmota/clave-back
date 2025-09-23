@@ -38,7 +38,8 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
 
     Organizer public currentOrganizer;
 
-    uint256 public presentationCount;
+    mapping(uint256 => uint256) public presentationsPerSeasonCount;
+    mapping(uint256 => uint256[]) public seasonPresentationIds;
     mapping(uint256 => Presentation) public presentations;
 
     uint256 public purchaseCount;
@@ -138,9 +139,11 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         require(_maxTables > 0, "Numero de mesa deve ser maior que zero");
         require(_season >= 2025, "Temporada invalida");
 
-        presentationCount++;
-        presentations[presentationCount] = Presentation({
-            id: presentationCount,
+        uint256 presentationNumberOfSeason = presentationsPerSeasonCount[_season]++;
+        uint256 presentationId = _season * 10000 + presentationNumberOfSeason;
+
+        presentations[presentationId] = Presentation({
+            id: presentationId,
             date: _date,
             startTime: _startTime,
             endTime: _endTime,
@@ -149,8 +152,10 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             maxTables: _maxTables,
             active: true
         });
+        seasonPresentationIds[_season].push(presentationId);
+
         emit PresentationCreated(
-            presentationCount,
+            presentationId,
             _date,
             _startTime,
             _endTime,
@@ -158,6 +163,21 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             _tablePrice,
             _maxTables
         );
+    }
+
+    function getPresentationsBySeason(
+        uint256 season
+    ) public view returns (Presentation[] memory) {
+        uint256[] memory presentationIds = seasonPresentationIds[season];
+        Presentation[] memory seasonPresentations = new Presentation[](
+            presentationIds.length
+        );
+
+        for (uint i = 0; i < presentationIds.length; i++) {
+            seasonPresentations[i] = presentations[presentationIds[i]];
+        }
+
+        return seasonPresentations;
     }
 
     function purchaseTable(
