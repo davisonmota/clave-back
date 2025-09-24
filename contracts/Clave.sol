@@ -65,6 +65,15 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 maxTables
     );
 
+    event PresentationUpdated(
+        uint256 indexed id,
+        uint256 date,
+        uint256 startTime,
+        uint256 endTime,
+        uint256 tablePrice,
+        uint256 maxTables
+    );
+
     event TablePurchased(
         uint256 purchaseId,
         uint256 presentationId,
@@ -178,6 +187,42 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         }
 
         return seasonPresentations;
+    }
+
+    function updatePresentation(
+        uint256 _presentationId,
+        uint256 _date,
+        uint256 _season,
+        uint256 _startTime,
+        uint256 _endTime,
+        uint256 _tablePrice,
+        uint256 _maxTables
+    ) public onlyOrganizer {
+        Presentation storage presentation = presentations[_presentationId];
+        
+        require(presentation.id != 0, "Apresentacao nao encontrada");
+        require(presentation.active, "Apenas apresentacoes ativas podem ser alteradas");
+        require(presentation.date > block.timestamp, "Nao pode alterar apresentacao que ja ocorreu");
+        require(_date > block.timestamp, "A nova data deve ser no futuro");
+        require(_season == presentation.season, "Nao e permitido alterar a temporada da apresentacao");
+        require(_startTime < _endTime, "Inicio do evento deve ser ante do termino");
+        require(_tablePrice > 0, "O preco da mesa deve ser maior que zero");
+        require(_maxTables > 0, "Numero de mesa deve ser maior que zero");
+
+        presentation.date = _date;
+        presentation.startTime = _startTime;
+        presentation.endTime = _endTime;
+        presentation.tablePrice = _tablePrice;
+        presentation.maxTables = _maxTables;
+
+        emit PresentationUpdated(
+            _presentationId,
+            _date,
+            _startTime,
+            _endTime,
+            _tablePrice,
+            _maxTables
+        );
     }
 
     function purchaseTable(
