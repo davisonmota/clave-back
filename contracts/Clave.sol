@@ -8,6 +8,20 @@ import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ER
 
 contract Clave is ERC721, ERC721Burnable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    uint256 public constant MAX_TABLES = 150;
+
+    enum Session {
+        Jkafe,
+        Baiuca,
+        Vitelo,
+        EstradaReal,
+        ButequinDaQuitanda,
+        Raccon,
+        Taberna,
+        BristoVesperata,
+        PastelECia,
+        EsquinaDaQuitanda
+    }
 
     struct Organizer {
         string company;
@@ -24,7 +38,6 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 endTime;
         uint256 season;
         uint256 tablePrice;
-        uint256 maxTables;
         bool active;
     }
 
@@ -34,6 +47,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 presentationId;
         uint256 purchaseTimestamp;
         bool checkedIn;
+        Session session;
     }
 
     Organizer public currentOrganizer;
@@ -41,6 +55,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
     mapping(uint256 => uint256) public presentationsPerSeasonCount;
     mapping(uint256 => uint256[]) public seasonPresentationIds;
     mapping(uint256 => Presentation) public presentations;
+    mapping(uint256 => Session) public tokenSession;
 
     uint256 public purchaseCount;
     mapping(uint256 => mapping(uint256 => TableInfo)) public presentationTables;
@@ -61,8 +76,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 startTime,
         uint256 endTime,
         uint256 indexed season,
-        uint256 tablePrice,
-        uint256 maxTables
+        uint256 tablePrice
     );
 
     event PresentationUpdated(
@@ -70,15 +84,15 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 date,
         uint256 startTime,
         uint256 endTime,
-        uint256 tablePrice,
-        uint256 maxTables
+        uint256 tablePrice
     );
 
     event TablePurchased(
         uint256 purchaseId,
         uint256 presentationId,
         uint256 tableId,
-        address buyer
+        address buyer,
+        Session session
     );
 
     modifier onlyOrganizer() {
@@ -136,8 +150,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 _startTime,
         uint256 _endTime,
         uint256 _season,
-        uint256 _tablePrice,
-        uint256 _maxTables
+        uint256 _tablePrice
     ) public onlyOrganizer {
         require(_date > block.timestamp, "A data deve ser no futuro");
         require(
@@ -145,10 +158,11 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             "Inicio do evento deve ser ante do termino"
         );
         require(_tablePrice > 0, "O preco da mesa deve ser maior que zero");
-        require(_maxTables > 0, "Numero de mesa deve ser maior que zero");
         require(_season >= 2025, "Temporada invalida");
 
-        uint256 presentationNumberOfSeason = presentationsPerSeasonCount[_season]++;
+        uint256 presentationNumberOfSeason = presentationsPerSeasonCount[
+            _season
+        ]++;
         uint256 presentationId = _season * 10000 + presentationNumberOfSeason;
 
         presentations[presentationId] = Presentation({
@@ -158,7 +172,6 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             endTime: _endTime,
             season: _season,
             tablePrice: _tablePrice,
-            maxTables: _maxTables,
             active: true
         });
         seasonPresentationIds[_season].push(presentationId);
@@ -169,8 +182,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             _startTime,
             _endTime,
             _season,
-            _tablePrice,
-            _maxTables
+            _tablePrice
         );
     }
 
@@ -195,39 +207,48 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 _season,
         uint256 _startTime,
         uint256 _endTime,
-        uint256 _tablePrice,
-        uint256 _maxTables
+        uint256 _tablePrice
     ) public onlyOrganizer {
         Presentation storage presentation = presentations[_presentationId];
-        
+
         require(presentation.id != 0, "Apresentacao nao encontrada");
-        require(presentation.active, "Apenas apresentacoes ativas podem ser alteradas");
-        require(presentation.date > block.timestamp, "Nao pode alterar apresentacao que ja ocorreu");
+        require(
+            presentation.active,
+            "Apenas apresentacoes ativas podem ser alteradas"
+        );
+        require(
+            presentation.date > block.timestamp,
+            "Nao pode alterar apresentacao que ja ocorreu"
+        );
         require(_date > block.timestamp, "A nova data deve ser no futuro");
-        require(_season == presentation.season, "Nao e permitido alterar a temporada da apresentacao");
-        require(_startTime < _endTime, "Inicio do evento deve ser ante do termino");
+        require(
+            _season == presentation.season,
+            "Nao e permitido alterar a temporada da apresentacao"
+        );
+        require(
+            _startTime < _endTime,
+            "Inicio do evento deve ser ante do termino"
+        );
         require(_tablePrice > 0, "O preco da mesa deve ser maior que zero");
-        require(_maxTables > 0, "Numero de mesa deve ser maior que zero");
 
         presentation.date = _date;
         presentation.startTime = _startTime;
         presentation.endTime = _endTime;
         presentation.tablePrice = _tablePrice;
-        presentation.maxTables = _maxTables;
 
         emit PresentationUpdated(
             _presentationId,
             _date,
             _startTime,
             _endTime,
-            _tablePrice,
-            _maxTables
+            _tablePrice
         );
     }
 
     function purchaseTable(
         uint256 _presentationId,
-        uint256 _tableId
+        uint256 _tableId,
+        Session _session
     ) public payable {
         Presentation storage presentation = presentations[_presentationId];
         require(presentation.id != 0, "Apresentacao nao encontrada");
@@ -237,6 +258,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             "A mesa ja foi vendida"
         );
         require(msg.value == presentation.tablePrice, "Preco incorreto");
+        require(_tableId > 0 && _tableId <= MAX_TABLES, "Mesa invalida");
 
         uint256 purchaseId = ++purchaseCount;
         presentationTables[_presentationId][_tableId] = TableInfo({
@@ -244,17 +266,33 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             purchaseId: purchaseId,
             presentationId: _presentationId,
             purchaseTimestamp: block.timestamp,
-            checkedIn: false
+            checkedIn: false,
+            session: _session
         });
 
-        emit TablePurchased(purchaseId, _presentationId, _tableId, msg.sender);
+        emit TablePurchased(
+            purchaseId,
+            _presentationId,
+            _tableId,
+            msg.sender,
+            _session
+        );
     }
 
     function safeMint(
         address to,
-        uint256 tokenId
+        uint256 tokenId,
+        Session session
     ) public onlyRole(MINTER_ROLE) {
         _safeMint(to, tokenId);
+        tokenSession[tokenId] = session;
+    }
+
+    function getSessionByTokenId(
+        uint256 tokenId
+    ) public view returns (Session) {
+        require(ownerOf(tokenId) != address(0), "Token nao existe");
+        return tokenSession[tokenId];
     }
 
     // The following functions are overrides required by Solidity.
