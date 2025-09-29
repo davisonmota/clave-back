@@ -201,6 +201,12 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         return seasonPresentations;
     }
 
+    function getPresentationById(
+        uint256 presentationId
+    ) public view returns (Presentation memory) {
+        return presentations[presentationId];
+    }
+
     function updatePresentation(
         uint256 _presentationId,
         uint256 _date,
@@ -293,6 +299,16 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
     ) public view returns (Session) {
         require(ownerOf(tokenId) != address(0), "Token nao existe");
         return tokenSession[tokenId];
+    }
+
+    function getTablesForPresentation(
+        uint256 presentationId
+    ) public view returns (TableInfo[] memory) {
+        TableInfo[] memory tables = new TableInfo[](MAX_TABLES);
+        for (uint i = 0; i < MAX_TABLES; i++) {
+            tables[i] = presentationTables[presentationId][i + 1];
+        }
+        return tables;
     }
 
     // The following functions are overrides required by Solidity.
