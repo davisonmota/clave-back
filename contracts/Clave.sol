@@ -9,6 +9,7 @@ import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ER
 contract Clave is ERC721, ERC721Burnable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     uint256 public constant MAX_TABLES = 150;
+    uint256 public feeAmount;
 
     enum Session {
         Jkafe,
@@ -106,6 +107,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
     constructor(address defaultAdmin, address minter) ERC721("Clave", "CLV") {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(MINTER_ROLE, minter);
+        feeAmount = 0.0005 ether;
     }
 
     function setCurrentOrganizer(
@@ -263,8 +265,16 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             presentationTables[_presentationId][_tableId].purchaseId == 0,
             "A mesa ja foi vendida"
         );
-        require(msg.value == presentation.tablePrice, "Preco incorreto");
+        require(
+            msg.value == presentation.tablePrice + feeAmount,
+            "Preco incorreto"
+        );
         require(_tableId > 0 && _tableId <= MAX_TABLES, "Mesa invalida");
+
+        (bool success, ) = payable(currentOrganizer.wallet).call{
+            value: presentation.tablePrice
+        }("");
+        require(success, "Transfer to organizer failed");
 
         uint256 purchaseId = ++purchaseCount;
         presentationTables[_presentationId][_tableId] = TableInfo({
@@ -309,6 +319,19 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             tables[i] = presentationTables[presentationId][i + 1];
         }
         return tables;
+    }
+
+    function setFeeAmount(
+        uint256 _newFeeAmount
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        feeAmount = _newFeeAmount;
+    }
+
+    function withdrawFees() public onlyRole(DEFAULT_ADMIN_ROLE) {
+        uint256 amount = address(this).balance;
+        require(amount > 0, "No fees to withdraw");
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Fee withdrawal failed");
     }
 
     // The following functions are overrides required by Solidity.
