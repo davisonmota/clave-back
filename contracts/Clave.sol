@@ -49,6 +49,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 purchaseTimestamp;
         bool checkedIn;
         Session session;
+        address buyer;
     }
 
     Organizer public currentOrganizer;
@@ -94,6 +95,12 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 tableId,
         address buyer,
         Session session
+    );
+
+    event TableCheckedIn(
+        uint256 indexed presentationId,
+        uint256 indexed tableId,
+        uint256 timestamp
     );
 
     modifier onlyOrganizer() {
@@ -283,7 +290,8 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             presentationId: _presentationId,
             purchaseTimestamp: block.timestamp,
             checkedIn: false,
-            session: _session
+            session: _session,
+            buyer: msg.sender
         });
 
         emit TablePurchased(
@@ -319,6 +327,32 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             tables[i] = presentationTables[presentationId][i + 1];
         }
         return tables;
+    }
+
+    function checkIn(
+        uint256 _presentationId,
+        uint256 _tableId
+    ) public onlyOrganizer {
+        Presentation storage presentation = presentations[_presentationId];
+        require(presentation.id != 0, "Apresentacao nao encontrada");
+
+        require(
+            block.timestamp >= presentation.startTime - 1 hours,
+            "Check-in ainda nao esta aberto"
+        );
+        require(
+            block.timestamp <= presentation.endTime,
+            "Check-in ja esta fechado"
+        );
+
+        TableInfo storage table = presentationTables[_presentationId][_tableId];
+
+        require(table.purchaseId != 0, "Mesa nao foi vendida");
+        require(!table.checkedIn, "Check-in ja foi realizado");
+
+        table.checkedIn = true;
+
+        emit TableCheckedIn(_presentationId, _tableId, block.timestamp);
     }
 
     function setFeeAmount(
