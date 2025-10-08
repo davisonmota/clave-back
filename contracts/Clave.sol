@@ -10,6 +10,8 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     uint256 public constant MAX_TABLES = 150;
     uint256 public feeAmount;
+    uint256 public withdrawalDelay;
+    uint256 public accumulatedFees;
 
     enum Session {
         Jkafe,
@@ -61,6 +63,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
 
     uint256 public purchaseCount;
     mapping(uint256 => mapping(uint256 => TableInfo)) public presentationTables;
+    mapping(uint256 => uint256) public presentationFunds;
 
     event OrganizerChanged(
         string indexed cnpj,
@@ -103,6 +106,16 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 timestamp
     );
 
+    event WithdrawalDelayUpdated(uint256 newDelay, address indexed changedBy);
+
+    event FundsWithdrawn(
+        uint256 indexed presentationId,
+        address indexed to,
+        uint256 amount
+    );
+
+    event FeesWithdrawn(address indexed to, uint256 amount);
+
     modifier onlyOrganizer() {
         require(
             msg.sender == currentOrganizer.wallet,
@@ -115,6 +128,15 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(MINTER_ROLE, minter);
         feeAmount = 0.0005 ether;
+        withdrawalDelay = 3 days;
+    }
+
+    function setWithdrawalDelay(
+        uint256 _newDelay
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_newDelay > 0, "Prazo de saque invalido");
+        withdrawalDelay = _newDelay;
+        emit WithdrawalDelayUpdated(_newDelay, msg.sender);
     }
 
     function setCurrentOrganizer(
@@ -278,10 +300,8 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         );
         require(_tableId > 0 && _tableId <= MAX_TABLES, "Mesa invalida");
 
-        (bool success, ) = payable(currentOrganizer.wallet).call{
-            value: presentation.tablePrice
-        }("");
-        require(success, "Transfer to organizer failed");
+        presentationFunds[_presentationId] += presentation.tablePrice;
+        accumulatedFees += feeAmount;
 
         uint256 purchaseId = ++purchaseCount;
         presentationTables[_presentationId][_tableId] = TableInfo({
@@ -362,10 +382,36 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
     }
 
     function withdrawFees() public onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 amount = address(this).balance;
-        require(amount > 0, "No fees to withdraw");
+        uint256 amount = accumulatedFees;
+        require(amount > 0, "Nao ha taxas para sacar");
+        accumulatedFees = 0;
+
         (bool success, ) = payable(msg.sender).call{value: amount}("");
-        require(success, "Fee withdrawal failed");
+        require(success, "Saque de taxas falhou");
+
+        emit FeesWithdrawn(msg.sender, amount);
+    }
+
+    function withdrawFunds(uint256 _presentationId) public onlyOrganizer {
+        Presentation storage presentation = presentations[_presentationId];
+        require(presentation.id != 0, "Apresentacao nao encontrada");
+        require(
+            block.timestamp > presentation.endTime + withdrawalDelay,
+            "Saque disponivel apenas apos o periodo de bloqueio"
+        );
+
+        uint256 amount = presentationFunds[_presentationId];
+        require(amount > 0, "Nao ha fundos para sacar");
+
+        // A atualização do saldo é feita antes da chamada externa para prevenir ataques de reentrada (Checks-Effects-Interactions pattern).
+        // Se a transferência falhar, a transação inteira será revertida, garantindo que os fundos não sejam perdidos.
+        presentationFunds[_presentationId] = 0;
+
+        (bool success, ) = payable(currentOrganizer.wallet).call{value: amount}(
+            ""
+        );
+        require(success, "Falha na transferencia para o organizador");
+        emit FundsWithdrawn(_presentationId, currentOrganizer.wallet, amount);
     }
 
     // The following functions are overrides required by Solidity.
