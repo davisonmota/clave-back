@@ -2,12 +2,22 @@
 // Compatible with OpenZeppelin Contracts ^5.4.0
 pragma solidity ^0.8.27;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
-contract Clave is ERC721, ERC721Burnable, AccessControl {
+contract Clave is
+    ERC721,
+    ERC721Enumerable,
+    ERC721Burnable,
+    AccessControlEnumerable
+{
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+
     uint256 public constant MAX_TABLES = 150;
     uint256 public feeAmount;
     uint256 public withdrawalDelay;
@@ -50,6 +60,8 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         uint256 presentationId;
         uint256 purchaseTimestamp;
         bool checkedIn;
+        address checkedInBy;
+        uint256 checkInTimestamp;
         Session session;
         address buyer;
     }
@@ -93,16 +105,21 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
     );
 
     event TablePurchased(
+        uint256 indexed tokenId,
         uint256 purchaseId,
         uint256 presentationId,
         uint256 tableId,
         address buyer,
-        Session session
+        Session session,
+        uint256 price,
+        uint256 timestamp
     );
 
     event TableCheckedIn(
-        uint256 indexed presentationId,
-        uint256 indexed tableId,
+        uint256 indexed tokenId,
+        uint256 presentationId,
+        uint256 tableId,
+        address indexed operator,
         uint256 timestamp
     );
 
@@ -131,6 +148,13 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         withdrawalDelay = 3 days;
     }
 
+    function _generateTokenId(
+        uint256 _presentationId,
+        uint256 _tableId
+    ) internal pure returns (uint256) {
+        return _presentationId * 10000 + _tableId;
+    }
+
     function setWithdrawalDelay(
         uint256 _newDelay
     ) public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -152,7 +176,19 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         require(bytes(email).length > 0, "Email obrigatorio");
         require(bytes(phone).length >= 8, "Telefone obrigatorio");
         require(wallet != address(0), "Endereco wallet obrigatorio");
+        require(
+            wallet != currentOrganizer.wallet,
+            "Organizer is already set to this address"
+        );
 
+        // Limpa TODOS os operadores existentes.
+        uint256 operatorCount = getRoleMemberCount(OPERATOR_ROLE);
+        for (uint256 i = operatorCount; i > 0; i--) {
+            address operator = getRoleMember(OPERATOR_ROLE, i - 1);
+            _revokeRole(OPERATOR_ROLE, operator);
+        }
+
+        // Define o novo organizador
         currentOrganizer = Organizer({
             company: company,
             cnpj: cnpj,
@@ -160,6 +196,7 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             phone: phone,
             wallet: wallet
         });
+
         emit OrganizerChanged(
             cnpj,
             season,
@@ -167,6 +204,141 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             email,
             phone,
             wallet,
+            block.timestamp
+        );
+    }
+
+    function addOperator(address operatorAddress) public onlyOrganizer {
+        require(
+            operatorAddress != address(0),
+            "Operator address cannot be zero"
+        );
+        _grantRole(OPERATOR_ROLE, operatorAddress);
+    }
+
+    function removeOperator(address operatorAddress) public onlyOrganizer {
+        require(
+            operatorAddress != address(0),
+            "Operator address cannot be zero"
+        );
+        _revokeRole(OPERATOR_ROLE, operatorAddress);
+    }
+
+    function getCheckInMessageHash(
+        uint256 _presentationId,
+        uint256 _tableId
+    ) public view returns (bytes32) {
+        return
+            MessageHashUtils.toEthSignedMessageHash(
+                keccak256(
+                    abi.encodePacked(
+                        "Eu autorizo o check-in para a mesa ",
+                        _tableId,
+                        " da apresentacao ",
+                        _presentationId,
+                        " no contrato ",
+                        address(this),
+                        " na chain ID ",
+                        block.chainid
+                    )
+                )
+            );
+    }
+
+    function checkIn(
+        uint256 _presentationId,
+        uint256 _tableId,
+        bytes memory signature
+    ) public {
+        require(hasRole(OPERATOR_ROLE, msg.sender), "Not an operator");
+
+        Presentation storage presentation = presentations[_presentationId];
+        require(presentation.id != 0, "Apresentacao nao encontrada");
+
+        require(
+            block.timestamp >= presentation.startTime - 1 hours,
+            "Check-in ainda nao esta aberto"
+        );
+        require(
+            block.timestamp <= presentation.endTime,
+            "Check-in ja esta fechado"
+        );
+
+        TableInfo storage table = presentationTables[_presentationId][_tableId];
+        require(table.purchaseId != 0, "Mesa nao foi vendida");
+        require(!table.checkedIn, "Check-in ja foi realizado");
+
+        uint256 tokenId = _generateTokenId(_presentationId, _tableId);
+        address owner = ownerOf(tokenId);
+        require(owner != address(0), "Ingresso (NFT) invalido");
+
+        bytes32 messageHash = getCheckInMessageHash(_presentationId, _tableId);
+        address signerAddress = ECDSA.recover(messageHash, signature);
+
+        require(
+            signerAddress == owner,
+            "Assinatura invalida ou nao pertence ao dono do ingresso"
+        );
+
+        table.checkedIn = true;
+        table.checkedInBy = msg.sender;
+        table.checkInTimestamp = block.timestamp;
+
+        emit TableCheckedIn(
+            tokenId,
+            _presentationId,
+            _tableId,
+            msg.sender,
+            block.timestamp
+        );
+    }
+
+    function purchaseTable(
+        uint256 _presentationId,
+        uint256 _tableId,
+        Session _session
+    ) public payable {
+        Presentation storage presentation = presentations[_presentationId];
+        require(presentation.id != 0, "Apresentacao nao encontrada");
+        require(presentation.active, "A apresentacao nao esta ativa");
+        require(
+            presentationTables[_presentationId][_tableId].purchaseId == 0,
+            "A mesa ja foi vendida"
+        );
+        require(
+            msg.value == presentation.tablePrice + feeAmount,
+            "Preco incorreto"
+        );
+        require(_tableId > 0 && _tableId <= MAX_TABLES, "Mesa invalida");
+
+        presentationFunds[_presentationId] += presentation.tablePrice;
+        accumulatedFees += feeAmount;
+
+        uint256 purchaseId = ++purchaseCount;
+        presentationTables[_presentationId][_tableId] = TableInfo({
+            tableId: _tableId,
+            purchaseId: purchaseId,
+            presentationId: _presentationId,
+            purchaseTimestamp: block.timestamp,
+            checkedIn: false,
+            checkedInBy: address(0),
+            checkInTimestamp: 0,
+            session: _session,
+            buyer: msg.sender
+        });
+
+        uint256 tokenId = _generateTokenId(_presentationId, _tableId);
+        _safeMint(msg.sender, tokenId);
+        tokenSession[tokenId] = _session;
+
+        emit TablePurchased(
+            tokenId,
+            purchaseId,
+            _presentationId,
+            _tableId,
+            msg.sender,
+            _session,
+            presentation.tablePrice,
             block.timestamp
         );
     }
@@ -282,47 +454,6 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
         );
     }
 
-    function purchaseTable(
-        uint256 _presentationId,
-        uint256 _tableId,
-        Session _session
-    ) public payable {
-        Presentation storage presentation = presentations[_presentationId];
-        require(presentation.id != 0, "Apresentacao nao encontrada");
-        require(presentation.active, "A apresentacao nao esta ativa");
-        require(
-            presentationTables[_presentationId][_tableId].purchaseId == 0,
-            "A mesa ja foi vendida"
-        );
-        require(
-            msg.value == presentation.tablePrice + feeAmount,
-            "Preco incorreto"
-        );
-        require(_tableId > 0 && _tableId <= MAX_TABLES, "Mesa invalida");
-
-        presentationFunds[_presentationId] += presentation.tablePrice;
-        accumulatedFees += feeAmount;
-
-        uint256 purchaseId = ++purchaseCount;
-        presentationTables[_presentationId][_tableId] = TableInfo({
-            tableId: _tableId,
-            purchaseId: purchaseId,
-            presentationId: _presentationId,
-            purchaseTimestamp: block.timestamp,
-            checkedIn: false,
-            session: _session,
-            buyer: msg.sender
-        });
-
-        emit TablePurchased(
-            purchaseId,
-            _presentationId,
-            _tableId,
-            msg.sender,
-            _session
-        );
-    }
-
     function safeMint(
         address to,
         uint256 tokenId,
@@ -347,32 +478,6 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
             tables[i] = presentationTables[presentationId][i + 1];
         }
         return tables;
-    }
-
-    function checkIn(
-        uint256 _presentationId,
-        uint256 _tableId
-    ) public onlyOrganizer {
-        Presentation storage presentation = presentations[_presentationId];
-        require(presentation.id != 0, "Apresentacao nao encontrada");
-
-        require(
-            block.timestamp >= presentation.startTime - 1 hours,
-            "Check-in ainda nao esta aberto"
-        );
-        require(
-            block.timestamp <= presentation.endTime,
-            "Check-in ja esta fechado"
-        );
-
-        TableInfo storage table = presentationTables[_presentationId][_tableId];
-
-        require(table.purchaseId != 0, "Mesa nao foi vendida");
-        require(!table.checkedIn, "Check-in ja foi realizado");
-
-        table.checkedIn = true;
-
-        emit TableCheckedIn(_presentationId, _tableId, block.timestamp);
     }
 
     function setFeeAmount(
@@ -416,9 +521,29 @@ contract Clave is ERC721, ERC721Burnable, AccessControl {
 
     // The following functions are overrides required by Solidity.
 
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    ) internal override(ERC721, ERC721Enumerable) returns (address) {
+        return super._update(to, tokenId, auth);
+    }
+
+    function _increaseBalance(
+        address account,
+        uint128 value
+    ) internal override(ERC721, ERC721Enumerable) {
+        super._increaseBalance(account, value);
+    }
+
     function supportsInterface(
         bytes4 interfaceId
-    ) public view override(ERC721, AccessControl) returns (bool) {
+    )
+        public
+        view
+        override(ERC721, ERC721Enumerable, AccessControlEnumerable)
+        returns (bool)
+    {
         return super.supportsInterface(interfaceId);
     }
 }
