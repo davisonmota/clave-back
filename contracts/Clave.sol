@@ -8,6 +8,7 @@ import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/
 import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Clave is
     ERC721,
@@ -224,25 +225,31 @@ contract Clave is
         _revokeRole(OPERATOR_ROLE, operatorAddress);
     }
 
-    function getCheckInMessageHash(
+    function getCheckInMessage(
         uint256 _presentationId,
         uint256 _tableId
-    ) public view returns (bytes32) {
+    ) public view returns (string memory) {
         return
-            MessageHashUtils.toEthSignedMessageHash(
-                keccak256(
-                    abi.encodePacked(
-                        "Eu autorizo o check-in para a mesa ",
-                        _tableId,
-                        " da apresentacao ",
-                        _presentationId,
-                        " no contrato ",
-                        address(this),
-                        " na chain ID ",
-                        block.chainid
-                    )
+            string(
+                abi.encodePacked(
+                    "Eu autorizo o check-in para a mesa ",
+                    Strings.toString(_tableId),
+                    " da apresentacao ",
+                    Strings.toString(_presentationId),
+                    " no contrato ",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    " na chain ID ",
+                    Strings.toString(block.chainid)
                 )
             );
+    }
+
+    function _getEthSignedCheckInHash(
+        uint256 _presentationId,
+        uint256 _tableId
+    ) internal view returns (bytes32) {
+        string memory message = getCheckInMessage(_presentationId, _tableId);
+        return MessageHashUtils.toEthSignedMessageHash(bytes(message));
     }
 
     function checkIn(
@@ -272,7 +279,10 @@ contract Clave is
         address owner = ownerOf(tokenId);
         require(owner != address(0), "Ingresso (NFT) invalido");
 
-        bytes32 messageHash = getCheckInMessageHash(_presentationId, _tableId);
+        bytes32 messageHash = _getEthSignedCheckInHash(
+            _presentationId,
+            _tableId
+        );
         address signerAddress = ECDSA.recover(messageHash, signature);
 
         require(
