@@ -6,6 +6,7 @@ import {AccessControlEnumerable} from "@openzeppelin/contracts/access/extensions
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
+import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -13,6 +14,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract Clave is
     ERC721,
     ERC721Enumerable,
+    ERC721URIStorage,
     ERC721Burnable,
     AccessControlEnumerable
 {
@@ -23,6 +25,7 @@ contract Clave is
     uint256 public feeAmount;
     uint256 public withdrawalDelay;
     uint256 public accumulatedFees;
+    string public baseURI;
 
     enum Session {
         Jkafe,
@@ -113,6 +116,7 @@ contract Clave is
         address buyer,
         Session session,
         uint256 price,
+        string tokenURI,
         uint256 timestamp
     );
 
@@ -162,6 +166,12 @@ contract Clave is
         require(_newDelay > 0, "Prazo de saque invalido");
         withdrawalDelay = _newDelay;
         emit WithdrawalDelayUpdated(_newDelay, msg.sender);
+    }
+
+    function setBaseURI(
+        string memory _newBaseURI
+    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        baseURI = _newBaseURI;
     }
 
     function setCurrentOrganizer(
@@ -262,14 +272,14 @@ contract Clave is
         Presentation storage presentation = presentations[_presentationId];
         require(presentation.id != 0, "Apresentacao nao encontrada");
 
-        require(
-            block.timestamp >= presentation.startTime - 1 hours,
-            "Check-in ainda nao esta aberto"
-        );
-        require(
-            block.timestamp <= presentation.endTime,
-            "Check-in ja esta fechado"
-        );
+        // require(
+        //     block.timestamp >= presentation.startTime - 1 hours,
+        //     "Check-in ainda nao esta aberto"
+        // );
+        // require(
+        //     block.timestamp <= presentation.endTime,
+        //     "Check-in ja esta fechado"
+        // );
 
         TableInfo storage table = presentationTables[_presentationId][_tableId];
         require(table.purchaseId != 0, "Mesa nao foi vendida");
@@ -338,7 +348,11 @@ contract Clave is
         });
 
         uint256 tokenId = _generateTokenId(_presentationId, _tableId);
+        string memory newTokenURI = string(
+            abi.encodePacked(baseURI, Strings.toString(tokenId))
+        );
         _safeMint(msg.sender, tokenId);
+        _setTokenURI(tokenId, newTokenURI);
         tokenSession[tokenId] = _session;
 
         emit TablePurchased(
@@ -349,6 +363,7 @@ contract Clave is
             msg.sender,
             _session,
             presentation.tablePrice,
+            newTokenURI,
             block.timestamp
         );
     }
@@ -510,10 +525,10 @@ contract Clave is
     function withdrawFunds(uint256 _presentationId) public onlyOrganizer {
         Presentation storage presentation = presentations[_presentationId];
         require(presentation.id != 0, "Apresentacao nao encontrada");
-        require(
-            block.timestamp > presentation.endTime + withdrawalDelay,
-            "Saque disponivel apenas apos o periodo de bloqueio"
-        );
+        // require(
+        //     block.timestamp > presentation.endTime + withdrawalDelay,
+        //     "Saque disponivel apenas apos o periodo de bloqueio"
+        // );
 
         uint256 amount = presentationFunds[_presentationId];
         require(amount > 0, "Nao ha fundos para sacar");
@@ -546,12 +561,23 @@ contract Clave is
         super._increaseBalance(account, value);
     }
 
+    function tokenURI(
+        uint256 tokenId
+    ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
+        return super.tokenURI(tokenId);
+    }
+
     function supportsInterface(
         bytes4 interfaceId
     )
         public
         view
-        override(ERC721, ERC721Enumerable, AccessControlEnumerable)
+        override(
+            ERC721,
+            ERC721Enumerable,
+            ERC721URIStorage,
+            AccessControlEnumerable
+        )
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
