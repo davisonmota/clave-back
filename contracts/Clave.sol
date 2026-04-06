@@ -272,14 +272,14 @@ contract Clave is
         Presentation storage presentation = presentations[_presentationId];
         require(presentation.id != 0, "Apresentacao nao encontrada");
 
-        // require(
-        //     block.timestamp >= presentation.startTime - 1 hours,
-        //     "Check-in ainda nao esta aberto"
-        // );
-        // require(
-        //     block.timestamp <= presentation.endTime,
-        //     "Check-in ja esta fechado"
-        // );
+        require(
+            block.timestamp >= presentation.startTime - 1 hours,
+            "Check-in ainda nao esta aberto"
+        );
+        require(
+            block.timestamp <= presentation.endTime,
+            "Check-in ja esta fechado"
+        );
 
         TableInfo storage table = presentationTables[_presentationId][_tableId];
         require(table.purchaseId != 0, "Mesa nao foi vendida");
@@ -525,10 +525,10 @@ contract Clave is
     function withdrawFunds(uint256 _presentationId) public onlyOrganizer {
         Presentation storage presentation = presentations[_presentationId];
         require(presentation.id != 0, "Apresentacao nao encontrada");
-        // require(
-        //     block.timestamp > presentation.endTime + withdrawalDelay,
-        //     "Saque disponivel apenas apos o periodo de bloqueio"
-        // );
+        require(
+            block.timestamp > presentation.endTime + withdrawalDelay,
+            "Saque disponivel apenas apos o periodo de bloqueio"
+        );
 
         uint256 amount = presentationFunds[_presentationId];
         require(amount > 0, "Nao ha fundos para sacar");
