@@ -95,7 +95,7 @@ Para interagir com o sistema simulando os diferentes atores e permissões do eco
 | :---: | :---: |
 | <img src="assets/import-accounts/3.png" width="300" alt="Inserção da chave privada"/> | <img src="assets/import-accounts/4.png" width="300" alt="Renomeando a conta importada utilizando o padrão sugerido"/> |
 
-5. **Renomear para Organização (opcional):** Para aplicar a convenção, clique nos três pontos ao lado da conta recém-importada, selecione **"Edit account name"** (Editar nome da conta) e aplique o padrão combinado (ex: `#0 - Admin - 2266`).
+5. **Renomear para Organização (opcional):** Para aplicar a convenção, clique nos três pontos ao lado da conta recém-importada, selecione **"Rename"** e aplique o padrão combinado (ex: `#0 - Admin - 2266`).
 
 
 ### Convenção Recomendada para Organização de Contas
