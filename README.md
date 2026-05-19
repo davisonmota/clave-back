@@ -48,13 +48,13 @@ Para interagir com o contrato através de um frontend ou dApp, você precisará 
 2. Abra o menu de configurações (no canto superior direito) e clique em **Networks** (Redes).
 
 <p align="center">
-  <img src="assets/import-accounts/1.png" alt="Configurações da MetaMask - Redes" width="350"/>
+  <img src="assets/setup-carteira/1.png" alt="Configurações da MetaMask - Redes" width="350"/>
 </p>
 
 3. No menu de gerenciamento, clique no botão **"Add a custom network"** (Adicionar uma rede manualmente) na parte inferior.
 
 <p align="center">
-  <img src="assets/import-accounts/2.png" alt="Gerenciar Redes na MetaMask" width="350"/>
+  <img src="assets/setup-carteira/2.png" alt="Gerenciar Redes na MetaMask" width="350"/>
 </p>
 
 4. Preencha os campos com os seguintes dados da sua rede Hardhat local:
@@ -64,7 +64,7 @@ Para interagir com o contrato através de um frontend ou dApp, você precisará 
    * **Símbolo da moeda** (*Currency symbol*): `ETH`
 
 <p align="center">
-  <img src="assets/import-accounts/3.png" alt="Preenchendo os dados da rede local" width="350"/>
+  <img src="assets/setup-carteira/3.png" alt="Preenchendo os dados da rede local" width="350"/>
 </p>
 
 5. Clique em **Salvar**. Agora sua carteira está conectada ao nó local do Hardhat!
@@ -76,6 +76,27 @@ Para interagir com o contrato através de um frontend ou dApp, você precisará 
 Quando você executa o comando `npm run node`, o Hardhat gera 20 contas de teste (*Accounts*), cada uma abastecida com 10.000 ETH fictícios para uso local, e exibe as suas respectivas **Private Keys** (Chaves Privadas) no terminal.
 
 Para interagir com o sistema simulando os diferentes atores e permissões do ecossistema Clave, você pode importar essas chaves diretamente para a sua MetaMask.
+
+### Passo a Passo da Importação:
+
+1. **Acessar o Menu de Carteiras:** Na tela inicial da MetaMask, clique no seletor de contas no canto superior esquedo.
+2. Selecione o botão **"Add wallet"** (Adicionar carteira) localizado na parte inferior.
+
+| Passo 1: Acessar o Menu de Carteiras | Passo 2: Selecionar Add Wallet |
+| :---: | :---: |
+| <img src="assets/import-accounts/1.png" width="300" alt="Menu de contas da MetaMask"/> | <img src="assets/import-accounts/2.png" width="300" alt="Opções de adição de carteira"/> |
+
+3. **Selecionar o Tipo de Importação:** No menu flutuante que será exibido, clique na opção **"Import an account"** (Importar conta).
+
+4. **Inserir a Chave Privada:** Vá até o terminal onde a rede local do Hardhat está rodando, copie a string hexadecimal correspondente à **Private Key** da conta desejada (ex: Account #0), cole-a no campo de texto e clique em **"Import"** (Importar).
+
+
+| Passo 3: Selecionar o Tipo de Importação | Passo 4: Customizar o nome da conta |
+| :---: | :---: |
+| <img src="assets/import-accounts/3.png" width="300" alt="Inserção da chave privada"/> | <img src="assets/import-accounts/4.png" width="300" alt="Renomeando a conta importada utilizando o padrão sugerido"/> |
+
+5. **Renomear para Organização (opcional):** Para aplicar a convenção, clique nos três pontos ao lado da conta recém-importada, selecione **"Edit account name"** (Editar nome da conta) e aplique o padrão combinado (ex: `#0 - Admin - 2266`).
+
 
 ### Convenção Recomendada para Organização de Contas
 
@@ -94,22 +115,6 @@ Como o Hardhat gera endereços determinísticos, você pode mapear os papéis do
 | **Account #5** | Operador de Validação 3 | `#5 - Operador 3 - A4dc` | Realiza o check-in e validação de assinaturas na portaria. |
 | **Account #6** | Cliente Comprador A | `#6 - Cliente A - 0aa9` | Usuário comum que compra a mesa e recebe o NFT. |
 | **Account #7** | Cliente Comprador B | `#7 - Cliente B - 9955` | Usuário comum que compra a mesa e recebe o NFT. |
-
-### Passo a Passo da Importação:
-
-1. **Acessar o Menu de Carteiras:** Na tela inicial da MetaMask, clique no seletor de contas centralizado no topo e selecione o botão **"Add wallet"** (Adicionar carteira) localizado na parte inferior.
-2. **Selecionar o Tipo de Importação:** No menu flutuante que será exibido, clique na opção **"Import an account"** (Importar conta).
-
-| Passo 1: Iniciar fluxo de adição | Passo 2: Selecionar importação de conta |
-| :---: | :---: |
-| <img src="assets/import-accounts/1.png" width="300" alt="Menu de contas da MetaMask"/> | <img src="assets/import-accounts/2.png" width="300" alt="Opções de adição de carteira"/> |
-
-3. **Inserir a Chave Privada:** Vá até o terminal onde a rede local do Hardhat está rodando, copie a string hexadecimal correspondente à **Private Key** da conta desejada (ex: Account #0), cole-a no campo de texto e clique em **"Import"** (Importar).
-4. **Renomear para Organização:** Para aplicar a convenção, clique nos três pontos ao lado da conta recém-importada, selecione **"Edit account name"** (Editar nome da conta) e aplique o padrão combinado (ex: `#0 - Admin - 2266`).
-
-| Passo 3: Colar a Private Key do Hardhat | Passo 4: Customizar o nome da conta |
-| :---: | :---: |
-| <img src="assets/import-accounts/3.png" width="300" alt="Inserção da chave privada"/> | <img src="assets/import-accounts/4.png" width="300" alt="Renomeando a conta importada utilizando o padrão sugerido"/> |
 
 ---
 
