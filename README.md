@@ -45,7 +45,7 @@ O contrato principal, `Clave.sol`, herda implementações seguras da biblioteca 
 Para interagir com o contrato através de um frontend ou dApp, você precisará configurar sua carteira (como a MetaMask) para reconhecer a rede local do Hardhat:
 
 1. Instale/Abra a extensão MetaMask no seu navegador.
-2. Abra o menu de configurações (no anto superior direito) e clique em **Networks** (Redes).
+2. Abra o menu de configurações (no canto superior direito) e clique em **Networks** (Redes).
 
 <p align="center">
   <img src="assets/import-accounts/1.png" alt="Configurações da MetaMask - Redes" width="350"/>
